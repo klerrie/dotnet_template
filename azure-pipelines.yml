@@ -1,5 +1,9 @@
 pool:
-  vmImage: 'ubuntu-latest'
+  name: Azure Pipelines
+  demands:
+  - msbuild
+  - visualstudio
+  - vstest
 
 steps:
 - task: AzureKeyVault@1
@@ -9,15 +13,15 @@ steps:
     SecretsFilter: 'secretDemo'                          ## YOUR_SECRET_NAME. Default value: *
     RunAsPreJob: false                                   ## Make the secret(s) available to the whole job
 
-- task: DotNetCoreCLI@2
+- task: NuGetToolInstaller@0
+  displayName: 'Use NuGet 4.4.1'
   inputs:
-    command: 'build'
-    projects: '**/*.csproj'
+    versionSpec: 4.4.1
 
-- task: DotNetCoreCLI@2
+- task: NuGetCommand@2
+  displayName: 'NuGet restore'
   inputs:
-    command: 'run'
-    projects: '**/*.csproj'
+    restoreSolution: '$(Parameters.solution)'
   env:
     mySecret: $(secretDemo)
 
@@ -25,3 +29,34 @@ steps:
     echo "Secret Found! $MY_MAPPED_ENV_VAR"        
   env:
     MY_MAPPED_ENV_VAR: $(mySecret)
+
+- task: VSBuild@1
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(Parameters.solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactstagingdirectory)\\"'
+    platform: '$(BuildPlatform)'
+    configuration: '$(BuildConfiguration)'
+
+- task: VSTest@2
+  displayName: 'Test Assemblies'
+  inputs:
+    testAssemblyVer2: |
+     **\$(BuildConfiguration)\*test*.dll
+     !**\obj\**
+    platform: '$(BuildPlatform)'
+    configuration: '$(BuildConfiguration)'
+
+- task: PublishSymbols@2
+  displayName: 'Publish symbols path'
+  inputs:
+    SearchPattern: '**\bin\**\*.pdb'
+    PublishSymbols: false
+  continueOnError: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact'
+  inputs:
+    PathtoPublish: '$(build.artifactstagingdirectory)'
+    ArtifactName: '$(Parameters.ArtifactName)'
+  condition: succeededOrFailed()
