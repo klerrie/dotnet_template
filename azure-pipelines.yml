@@ -9,7 +9,7 @@ steps:
     SecretsFilter: 'secretDemo'                          ## YOUR_SECRET_NAME. Default value: *
     RunAsPreJob: false                                   ## Make the secret(s) available to the whole job
 
-task: DotNetCoreCLI@2
+- task: DotNetCoreCLI@2
   inputs:
     command: 'build'
     projects: '**/*.csproj'
